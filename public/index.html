@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>OCR → Excel Converter</title>
+    <style>
+      .top-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .clock-wrap {
+        text-align: right;
+        font-size: 14px;
+        line-height: 1.3;
+      }
+      .clock-time {
+        font-weight: 700;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+
+  <body style="font-family: Arial; max-width: 1000px; margin: 30px auto;">
+    <div class="top-bar">
+      <h2 style="margin: 0;">Image → Text → Excel (Myanmar + English)</h2>
+      <div class="clock-wrap">
+        <div class="clock-time" id="clockText">--:--:--</div>
+        <div id="dateText">Loading date...</div>
+      </div>
+    </div>
+
+    <!-- Upload Form -->
+    <input type="file" id="imageInput" accept="image/*" />
+    <button onclick="extractText()">Extract Text</button>
+
+    <p id="status"></p>
+
+    <!-- Image Preview -->
+    <h3>Selected Image Preview</h3>
+    <div style="margin: 10px 0;">
+      <img
+        id="imagePreview"
+        alt="Preview will appear here after you choose an image."
+        style="display: none; border: 1px solid #ccc; padding: 6px;width: 100%;height: 400px;"
+        /* object-fit:contain" */
+      />
+    </div>
+
+    <!-- Editable Text Area -->
+    <h3>Extracted Text (Editable)</h3>
+    <textarea
+      id="textArea"
+      rows="12"
+      style="width: 100%; font-size: 15px;"
+    ></textarea>
+
+    <br /><br />
+
+    <!-- Convert Button -->
+    <button onclick="downloadExcel()">⬇ Convert to Excel</button>
+
+    <script>
+      // Live clock + today's date
+      const clockEl = document.getElementById("clockText");
+      const dateEl = document.getElementById("dateText");
+      function updateClock() {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+        const dateStr = now.toLocaleDateString([], {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        clockEl.textContent = timeStr;
+        dateEl.textContent = dateStr;
+      }
+      updateClock();
+      setInterval(updateClock, 1000);
+
+      async function extractText() {
+        const file = document.getElementById("imageInput").files[0];
+        if (!file) return alert("Please upload an image first!");
+
+        document.getElementById("status").innerText = "Extracting text...";
+
+        const formData = new FormData();
+        formData.append("image", file);
+
+        const res = await fetch("/extract-text", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        document.getElementById("textArea").value = data.text;
+        document.getElementById("status").innerText = "Text extracted ✅";
+      }
+
+      async function downloadExcel() {
+        const text = document.getElementById("textArea").value;
+
+        if (!text.trim()) return alert("No text to convert!");
+
+        document.getElementById("status").innerText =
+          "Converting to Excel...";
+
+        const res = await fetch("/convert-excel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        });
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "ocr_output.xlsx";
+        a.click();
+
+        document.getElementById("status").innerText =
+          "Excel downloaded ✅";
+      }
+
+      // Show a preview immediately after file selection
+      document
+        .getElementById("imageInput")
+        .addEventListener("change", handleImagePreview);
+
+      function handleImagePreview(event) {
+        const file = event.target.files[0];
+        const preview = document.getElementById("imagePreview");
+
+        if (!file) {
+          preview.style.display = "none";
+          preview.removeAttribute("src");
+          return;
+        }
+
+        const url = URL.createObjectURL(file);
+        preview.src = url;
+        preview.style.display = "block";
+      }
+    </script>
+  </body>
+</html>
